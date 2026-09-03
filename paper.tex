@@ -1,0 +1,78 @@
+\documentclass[11pt]{article}
+
+\input{standardpackages}
+
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+
+\input{notation}
+
+% Set title and author information:
+\title{Everything But Solvers: Optimizing Internal Finite Element Data Structures}
+\author[1]{Martin Kronbichler}
+\author[2,*]{David Wells}
+\affil[1]{TODO}
+\affil[2]{TODO}
+\affil[*]{Corresponding author, \texttt{drwells@email.unc.edu}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+There is much ado about fast linear solvers these days.
+This is well and good.
+Such solvers depend on descriptions of the geometry, parallel data layouts, and a ``long tail'' of other relevant features.
+This work describes how deal.II modernized and adapted its core internal data structures to support high-performance solvers, mixed meshes, and modern computer architectures.
+\end{abstract}
+
+%% let's have an overview of the state-of-the art, beginning with some of
+%% Peter's work on Triangulation (based on the fenics paper) and other relevant
+%% stuff the other packages have done since 2020 or so
+\section{Introduction}
+\label{sec:introduction}
+
+\section{New Optimizations Enabled by Modern C++ Standards}
+\label{sec:new-optimizations}
+
+\subsection{ReferenceCell and GeometryInfo}
+\begin{enumerate}
+  \item Compile-time programming is completely different now vs. 15 years ago
+  \item \texttt{constexpr ReferenceCell} is about as good as \texttt{GeometryInfo<dim>}
+  \item \texttt{constexpr} and \texttt{consteval}: do we ever need \texttt{consteval}?
+\end{enumerate}
+
+\subsection{\texttt{inplace\_vector} vs. \texttt{array} vs \texttt{vector}}
+\begin{enumerate}
+  \item I saw a slowdown when replacing, in the part of \texttt{tria.cc} which
+    sets orientations on child faces (circa line 7910), array with inplace
+    vector. Why? Is there some weird aliasing?
+  \item Describe deal.II's system for generic element types (we should give
+    Peter credit for this), e.g., we have \texttt{Hexahedron} and not
+    \texttt{Hexahedron8} and \texttt{Hexahedron27}
+\end{enumerate}
+
+\section{Optimizing Triangulation}
+\begin{enumerate}
+  \item Work on flattening data structures (e.g., more inplace vector) (how much
+    did it actually help?)
+  \item Work on shrinking data structures (store one ReferenceCell per
+    Triangulation instead of one per cell, variable strides)
+\end{enumerate}
+
+\section{Optimizing DoFHandler}
+\begin{enumerate}
+  \item Peter should also get a lot of credit here
+  \item DoF lookup could be better optimized (maybe template on hp or not-hp,
+    and further template on \texttt{ReferenceCell})
+  \item Be careful with our use of \texttt{extern} and \texttt{inline} (maybe
+    too in-the-weeds for this paper, but that was a weird effect)
+\end{enumerate}
+
+% main text bibliography:
+\renewcommand\refname{REFERENCES}
+\bibliographystyle{plain}
+\bibliography{bib}
+
+\end{document}

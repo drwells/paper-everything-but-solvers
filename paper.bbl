@@ -1,0 +1,12 @@
+\begin{thebibliography}{10}
+
+\bibitem{dealII96}
+Pasquale~Claudio Africa, Daniel Arndt, Wolfgang Bangerth, Bruno Blais, Marc
+  Fehling, Rene Gassm{\"o}ller, Timo Heister, Luca Heltai, Sebastian Kinnewig,
+  Martin Kronbichler, Matthias Maier, Peter Munch, Magdalena
+  Schreter-Fleischhacker, Jan~Philipp Thiele, Bruno Turcksin, David Wells, and
+  Vladimir Yushutin.
+\newblock The deal.{II} library, version 9.6.
+\newblock {\em Journal of Numerical Mathematics}, 32(4):369--380, November
+  2024.
+\end{thebibliography}

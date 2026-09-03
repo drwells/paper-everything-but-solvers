@@ -1,0 +1,139 @@
+\usepackage{booktabs}
+\usepackage[margin=15pt,font=small,labelfont={bf,sf},justification=justified]{caption}
+\usepackage[superscript,biblabel]{cite}
+\usepackage{color}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{lscape}
+\usepackage[bbgreekl]{mathbbol}
+\usepackage{mathtools}
+\usepackage{multibib}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{titleref}
+\usepackage{url}
+\usepackage{lipsum}
+\usepackage{bm}
+\usepackage{tikz}
+\usepackage{subfig}
+\usepackage{caption}
+
+% setup font:
+
+\newif\ifbembo
+\newif\ifcharter
+\newif\iferewhon
+\newif\iflibertine
+\newif\iflibertinealt
+\newif\ifpalantino
+\newif\iftimesnewroman
+
+% set at most one of these to be true:
+\bembofalse
+\chartertrue
+\erewhonfalse
+\libertinefalse
+\libertinealtfalse
+\palantinofalse
+\timesnewromanfalse
+% note: if all false, then this will use default latex fonts
+
+% bembo font settings:
+\ifbembo
+  \usepackage[p,osf]{ETbb} % osf in text, tabular lining figures in math
+  \usepackage[scaled=.95,type1]{cabin} % sans serif in style of Gill Sans
+  \usepackage[varqu,varl]{zi4}% inconsolata typewriter
+  \usepackage[T1]{fontenc}
+  \usepackage[libertine,vvarbb]{newtxmath}
+  \usepackage[cal=boondoxo,bb=boondox]{mathalfa}
+\fi
+
+% charter font settings:
+\ifcharter
+  \usepackage[scaled=.98]{XCharter}
+  \usepackage[scaled=1.04,varqu,varl]{inconsolata}
+  \usepackage[type1]{cabin}
+  \usepackage[uprightscript,xcharter,vvarbb,scaled=1.05]{newtxmath}
+  \usepackage[cal=euler,scr=boondoxo,bb=boondox]{mathalpha}  % prefer bb=bboldxLight when available
+  \linespread{1.04}
+\fi
+
+% erewhon (utopia) font settings:
+\iferewhon
+  \usepackage[p,osf,scaled=.98,space]{erewhon} % scaling by .98 not really necessary
+  \usepackage[varqu,varl]{inconsolata} % typewriter
+  \usepackage[type1,scaled=.95]{cabin} % sans serif like Gill Sans
+  \usepackage[utopia,vvarbb]{newtxmath}
+\fi
+
+% libertine font settings:
+\iflibertine
+  \usepackage[sb]{libertinus}
+  \usepackage[T1]{fontenc}
+  \usepackage{textcomp}
+  \usepackage[varqu,varl]{zi4}% inconsolata for mono, not LibertineMono
+  \usepackage{libertinust1math} % slanted integrals, by default
+  \usepackage[scr=boondoxo,bb=boondox]{mathalpha} %Omit bb=boondox for default libertinus bb
+\fi
+
+% libertine font settings (alt):
+\iflibertinealt
+  \usepackage[sb]{libertinus}
+  \usepackage[T1]{fontenc}
+  \usepackage{textcomp}
+  \usepackage{libertinust1math} % slanted integrals, by default
+  \usepackage[scr=boondoxo,bb=boondox]{mathalpha} %Omit bb=boondox for default libertinus bb
+\fi
+
+% palantino font settings:
+\ifpalantino
+  \usepackage[largesc]{newpxtext}
+  \usepackage[vvarbb]{newpxmath}
+\fi
+
+% times new roman settings:
+\iftimesnewroman
+  \usepackage{newtxtext} %T1 is default encoding
+  \usepackage[scaled=0.95]{inconsolata} % typewriter
+  \usepackage[vvarbb]{newtxmath} % vvarbb gives STIX Bbb
+\fi
+
+\usepackage[T1]{fontenc}
+\usepackage[final,protrusion=true,expansion=true]{microtype}
+
+% use sans-serif fonts for titles and all headings:
+\usepackage{titling}
+\usepackage{authblk} % note: titling needs to be loaded before authblk
+% make titling elements \sffamily
+\pretitle{\begin{center}\bfseries\sffamily\LARGE}
+\posttitle{\end{center}}
+\usepackage{abstract}
+% make abstract title \sffamily
+\renewcommand\abstractnamefont{\bfseries\sffamily\large}
+
+%\usepackage[bf,sf]{titlesec}
+\usepackage{sectsty} % note: the main alternative package, titlesec, does not work with titleref
+\allsectionsfont{\sffamily}
+
+% setup margins:
+\usepackage[left=1in,right=1in,top=1in,bottom=1in,includefoot,heightrounded]{geometry}
+\usepackage[hidelinks]{hyperref}
+
+% this can be used to separate out methods or supplemental information references:
+\newcites{supp}{SUPPLEMENTAL REFERENCES}
+
+\makeatletter
+\patchcmd{\LS@rot}{90}{-90}{}{}
+\patchcmd{\endlandscape}{90}{-90}{}{}
+\makeatother
+
+\newcommand{\beginsupplement}{%
+        \setcounter{table}{0}
+        \renewcommand{\thetable}{S\arabic{table}}%
+        \setcounter{figure}{0}
+        \renewcommand{\thefigure}{S\arabic{figure}}%
+        \setcounter{section}{0}
+        \renewcommand{\thesection}{S\arabic{section}}
+        \setcounter{equation}{0}
+        \renewcommand{\theequation}{S\arabic{equation}}
+}
