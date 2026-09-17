@@ -119,12 +119,7 @@ namespace Bench
             dofs_on_ghost.insert(dof_index);
       }
 
-    // sort and put into an index set
-    std::vector<types::global_dof_index> sorted_array(dofs_on_ghost.begin(),
-                                                      dofs_on_ghost.end());
-    std::sort(sorted_array.begin(), sorted_array.end());
-    for (const auto a : sorted_array)
-      dof_set.add_index(a);
+    dof_set.add_indices(dofs_on_ghost.begin(), dofs_on_ghost.end());
     dof_set.compress();
 
     return dof_set;
