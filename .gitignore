@@ -4,5 +4,6 @@
 *.blg
 *.out
 code/*/build
+code/*/compile_commands.json
 paper.pdf
 

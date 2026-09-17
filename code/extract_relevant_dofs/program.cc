@@ -26,13 +26,13 @@ namespace Bench
 
     for (const auto &cell : dof_handler.active_cell_iterators())
       if (cell->is_ghost())
-        {
-          dof_indices.resize(cell->get_fe().n_dofs_per_cell());
-          cell->get_dof_indices(dof_indices);
-          for (const auto dof_index : dof_indices)
-            if (!dof_set.is_element(dof_index))
-              dofs_on_ghosts.push_back(dof_index);
-        }
+      {
+        dof_indices.resize(cell->get_fe().n_dofs_per_cell());
+        cell->get_dof_indices(dof_indices);
+        for (const auto dof_index : dof_indices)
+          if (!dof_set.is_element(dof_index))
+            dofs_on_ghosts.push_back(dof_index);
+      }
 
     // sort and put into an index set
     std::sort(dofs_on_ghosts.begin(), dofs_on_ghosts.end());
@@ -44,7 +44,8 @@ namespace Bench
 
   template <int dim, int spacedim>
   IndexSet
-  extract_locally_relevant_dofs_naive_vector(const DoFHandler<dim, spacedim> &dof_handler)
+  extract_locally_relevant_dofs_naive_vector(
+    const DoFHandler<dim, spacedim> &dof_handler)
   {
     // collect all the locally owned dofs
     std::vector<types::global_dof_index> dof_indices;
@@ -52,12 +53,12 @@ namespace Bench
 
     for (const auto &cell : dof_handler.active_cell_iterators())
       if (!cell->is_artificial())
-        {
-          dof_indices.resize(cell->get_fe().n_dofs_per_cell());
-          cell->get_dof_indices(dof_indices);
-          for (const auto dof_index : dof_indices)
-            dofs_on_ghosts.push_back(dof_index);
-        }
+      {
+        dof_indices.resize(cell->get_fe().n_dofs_per_cell());
+        cell->get_dof_indices(dof_indices);
+        for (const auto dof_index : dof_indices)
+          dofs_on_ghosts.push_back(dof_index);
+      }
 
     // sort and put into an index set
     std::sort(dofs_on_ghosts.begin(), dofs_on_ghosts.end());
@@ -70,26 +71,59 @@ namespace Bench
 
   template <int dim, int spacedim>
   IndexSet
-  extract_locally_relevant_dofs_map(const DoFHandler<dim, spacedim> &dof_handler)
+  extract_locally_relevant_dofs_map(
+    const DoFHandler<dim, spacedim> &dof_handler)
   {
     // collect all the locally owned dofs
     IndexSet dof_set = dof_handler.locally_owned_dofs();
 
     std::vector<types::global_dof_index> dof_indices;
-    std::set<types::global_dof_index> dofs_on_ghost;
+    std::set<types::global_dof_index>    dofs_on_ghost;
 
     for (const auto &cell : dof_handler.active_cell_iterators())
       if (cell->is_ghost())
-        {
-          dof_indices.resize(cell->get_fe().n_dofs_per_cell());
-          cell->get_dof_indices(dof_indices);
-          for (const auto dof_index : dof_indices)
-            if (!dof_set.is_element(dof_index))
-              dofs_on_ghost.insert(dof_index);
-        }
+      {
+        dof_indices.resize(cell->get_fe().n_dofs_per_cell());
+        cell->get_dof_indices(dof_indices);
+        for (const auto dof_index : dof_indices)
+          if (!dof_set.is_element(dof_index))
+            dofs_on_ghost.insert(dof_index);
+      }
 
     // sort and put into an index set
     for (const auto a : dofs_on_ghost)
+      dof_set.add_index(a);
+    dof_set.compress();
+
+    return dof_set;
+  }
+
+  template <int dim, int spacedim>
+  IndexSet
+  extract_locally_relevant_dofs_unordered_map(
+    const DoFHandler<dim, spacedim> &dof_handler)
+  {
+    // collect all the locally owned dofs
+    IndexSet dof_set = dof_handler.locally_owned_dofs();
+
+    std::vector<types::global_dof_index>        dof_indices;
+    std::unordered_set<types::global_dof_index> dofs_on_ghost;
+
+    for (const auto &cell : dof_handler.active_cell_iterators())
+      if (cell->is_ghost())
+      {
+        dof_indices.resize(cell->get_fe().n_dofs_per_cell());
+        cell->get_dof_indices(dof_indices);
+        for (const auto dof_index : dof_indices)
+          if (!dof_set.is_element(dof_index))
+            dofs_on_ghost.insert(dof_index);
+      }
+
+    // sort and put into an index set
+    std::vector<types::global_dof_index> sorted_array(dofs_on_ghost.begin(),
+                                                      dofs_on_ghost.end());
+    std::sort(sorted_array.begin(), sorted_array.end());
+    for (const auto a : sorted_array)
       dof_set.add_index(a);
     dof_set.compress();
 
@@ -123,21 +157,20 @@ namespace Bench
     {
       TimerOutput::Scope scope(timer, "2_distribute_dofs");
       dof_h.distribute_dofs(fe);
-      pcout << "Number of degrees of freedom: " << tria.n_global_active_cells()
-            << std::endl;
+      pcout << "Number of degrees of freedom: " << dof_h.n_dofs() << std::endl;
     }
 
     const unsigned int n_tests = 10;
     std::size_t        counter = 0;
     MPI_Barrier(comm);
     for (unsigned int t = 0; t < n_tests; ++t)
-      {
-        TimerOutput::Scope scope(timer, "3_dof_tools_relevant_dofs");
-        const IndexSet     relevant_dofs =
-          DoFTools::extract_locally_relevant_dofs(dof_h);
-        counter +=
-          relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
-      }
+    {
+      TimerOutput::Scope scope(timer, "3_dof_tools_relevant_dofs");
+      const IndexSet     relevant_dofs =
+        DoFTools::extract_locally_relevant_dofs(dof_h);
+      counter +=
+        relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
+    }
 
     pcout << "DoFTools::extract_locally_relevant_dofs found "
           << Utilities::MPI::sum(counter, comm) / n_tests
@@ -146,12 +179,12 @@ namespace Bench
     MPI_Barrier(comm);
     counter = 0;
     for (unsigned int t = 0; t < n_tests; ++t)
-      {
-        TimerOutput::Scope scope(timer, "4_vector_relevant_dofs");
-        const IndexSet     relevant_dofs = extract_locally_relevant_dofs(dof_h);
-        counter +=
-          relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
-      }
+    {
+      TimerOutput::Scope scope(timer, "4_vector_relevant_dofs");
+      const IndexSet     relevant_dofs = extract_locally_relevant_dofs(dof_h);
+      counter +=
+        relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
+    }
 
     pcout << "Manual extract_locally_relevant_dofs found "
           << Utilities::MPI::sum(counter, comm) / n_tests
@@ -160,12 +193,13 @@ namespace Bench
     MPI_Barrier(comm);
     counter = 0;
     for (unsigned int t = 0; t < n_tests; ++t)
-      {
-        TimerOutput::Scope scope(timer, "5_naive_vector_relevant_dofs");
-        const IndexSet     relevant_dofs = extract_locally_relevant_dofs_naive_vector(dof_h);
-        counter +=
-          relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
-      }
+    {
+      TimerOutput::Scope scope(timer, "5_naive_vector_relevant_dofs");
+      const IndexSet     relevant_dofs =
+        extract_locally_relevant_dofs_naive_vector(dof_h);
+      counter +=
+        relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
+    }
 
     pcout << "Naive vector extract_locally_relevant_dofs found "
           << Utilities::MPI::sum(counter, comm) / n_tests
@@ -174,14 +208,29 @@ namespace Bench
     MPI_Barrier(comm);
     counter = 0;
     for (unsigned int t = 0; t < n_tests; ++t)
-      {
-        TimerOutput::Scope scope(timer, "6_map_relevant_dofs");
-        const IndexSet     relevant_dofs = extract_locally_relevant_dofs_map(dof_h);
-        counter +=
-          relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
-      }
+    {
+      TimerOutput::Scope scope(timer, "6_map_relevant_dofs");
+      const IndexSet relevant_dofs = extract_locally_relevant_dofs_map(dof_h);
+      counter +=
+        relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
+    }
 
     pcout << "Map-based extract_locally_relevant_dofs found "
+          << Utilities::MPI::sum(counter, comm) / n_tests
+          << " ghost dofs across all ranks" << std::endl;
+
+    MPI_Barrier(comm);
+    counter = 0;
+    for (unsigned int t = 0; t < n_tests; ++t)
+    {
+      TimerOutput::Scope scope(timer, "7_unordered_set_relevant_dofs");
+      const IndexSet     relevant_dofs =
+        extract_locally_relevant_dofs_unordered_map(dof_h);
+      counter +=
+        relevant_dofs.n_elements() - dof_h.locally_owned_dofs().n_elements();
+    }
+
+    pcout << "unordered_map-based extract_locally_relevant_dofs found "
           << Utilities::MPI::sum(counter, comm) / n_tests
           << " ghost dofs across all ranks" << std::endl;
 
