@@ -24,7 +24,11 @@
 There is much ado about fast linear solvers these days.
 This is well and good.
 Such solvers depend on descriptions of the geometry, parallel data layouts, and a ``long tail'' of other relevant features.
-This work describes how deal.II modernized and adapted its core internal data structures to support high-performance solvers, mixed meshes, and modern computer architectures.
+This work describes how deal.II~\cite{dealII96} modernized and adapted its core internal data structures to support high-performance solvers, mixed triangulations, and modern computer architectures.
+
+Not a lot of people talk about efficient implementations of mixed meshes (it is unclear to me if mfem and dolfinx even support mixed meshes).
+libMesh supports these things but their overreliance on inheritance makes things slow (e.g., a \texttt{Hex27} stores $27$ \texttt{Node *}s, which isn't great.
+We may also want to highlight how this works and interacts with our \emph{hp}-FEM system.
 \end{abstract}
 
 %% let's have an overview of the state-of-the art, beginning with some of
@@ -33,13 +37,89 @@ This work describes how deal.II modernized and adapted its core internal data st
 \section{Introduction}
 \label{sec:introduction}
 
+\section{Literature Review}
+Let's communicate what we have done in comparison to how some other relevant
+packages have evolved (e.g., dolfinx).
+\begin{itemize}
+  \item mfem~\cite{MFEM} has published stuff on their GPU features, not so much
+    on internal data structures. It does talk about some non-GPU features, but
+    the focus is on solving problems with GPUs. Several of their miniapps use
+    CPUs (e.g., Hooke for automatic differentiation) which is more relevant to
+    this paper than their work on partial assembly etc.
+
+  \item I also found a paper on GridapSolvers (implemented in Julia) but it
+    doesn't talk about their internals.
+
+  \item Not all apps require GPUs and large parallelism: HAZniCS
+    (\url{https://arxiv.org/pdf/2210.13274}) has ``These problems do not require
+    parallel computing, but they may benefit significantly from advanced
+    algorithms.''
+
+  \item The DOLFINx~\cite{DOLFINx} paper is relevant (``The design of DOLFINx
+    differs fundamentally from its predecssor DOLFIN in following a
+    data-oriented and functional design''). That paper says they did those
+    things but doesn't provide many details (i.e., it answers `what' but not
+    `how'). Relevant things:
+    \begin{itemize}
+      \item ``With the NBX algorithm, DOLFINx does not use any MPI all-to-all
+        communication functions''
+
+      \item Extensive use of neighborhood collectives (MPI-3). Implies that for
+        very nice grids they can bound the number of neighboring processes and
+        significantly simplify communication
+
+      \item Mixed meshes were under development when this was published (2024)
+
+      \item Not unlike our Triangulation internals (in which each object stores
+        the indices of objects which bound it): they store everything as a
+        graphs (adjacency lists)
+
+      \item Focus on flat data structures makes interop between C++ and Python a
+        lot easier
+    \end{itemize}
+
+  \item \emph{TODO}: find some DUNE papers. I read one on Bryne
+    (\url{https://arxiv.org/pdf/2509.02378}) which talks about things they built
+    on DUNE, which implements rapid prototyping on top of an FE kernel. I
+    suspect a theme common to DUNE and DOLFINx is ``flat data structures enable
+    interoperability with python prototypes''
+
+    \begin{itemize}
+      \item ``ALUGrid is an adaptive, loadbalancing, unstructured implementation
+        of the DUNE grid interface supporting either simplices or cubes.'' (from
+        \url{https://www.dune-project.org/modules/dune-alugrid/}), so no mixed
+        mesh support! \texttt{SimplexGrid} and \texttt{CubeGrid} are different
+        classes.
+
+      \item Their 2015 paper has some high-level details but doesn't talk about
+        low-level data structure choices (it does have some numbers on memory
+        usage per vertex etc.)
+    \end{itemize}
+\end{itemize}
+
+We might have to read some source code to better understand what these other
+packages currently do. People don't publish these kinds of internal details
+(which I suspect are generally interesting, especially if more people want to
+support mixed meshes).
+
 \section{New Optimizations Enabled by Modern C++ Standards}
 \label{sec:new-optimizations}
 
 \subsection{ReferenceCell and GeometryInfo}
+deal.II 9.3~\cite{dealII93} Included preliminary support for computations on
+simplex and mixed (i.e., including multiple element types) triangulations. This
+was a significant milestone for deal.II, as the library historically only
+supported triangulations comprised of hypercube (i.e., quadrilateral and
+hexahedral) elements. While most of the foundational work was present in the 9.3
+release, the developers and broader user-contributor community have continued
+adding new features
+
 \begin{enumerate}
   \item Compile-time programming is completely different now vs. 15 years ago
-  \item \texttt{constexpr ReferenceCell} is about as good as \texttt{GeometryInfo<dim>}
+
+  \item \texttt{constexpr ReferenceCell<dim>} is about as good as
+    \texttt{GeometryInfo<dim>}
+
   \item \texttt{constexpr} and \texttt{consteval}: do we ever need \texttt{consteval}?
 \end{enumerate}
 
@@ -48,6 +128,7 @@ This work describes how deal.II modernized and adapted its core internal data st
   \item I saw a slowdown when replacing, in the part of \texttt{tria.cc} which
     sets orientations on child faces (circa line 7910), array with inplace
     vector. Why? Is there some weird aliasing?
+
   \item Describe deal.II's system for generic element types (we should give
     Peter credit for this), e.g., we have \texttt{Hexahedron} and not
     \texttt{Hexahedron8} and \texttt{Hexahedron27}
@@ -56,23 +137,64 @@ This work describes how deal.II modernized and adapted its core internal data st
 \section{Optimizing Triangulation}
 \begin{enumerate}
   \item Work on flattening data structures (e.g., more inplace vector) (how much
-    did it actually help?)
+    did it actually help?). I noticed some weirdness in Triangulation when I
+    tried to replace \texttt{std::array} with
+    \texttt{std\_cxx26::inplace\_vector} (it slowed down measurably in release
+    mode, even though both should be contiguous stack buffers?) Maybe we could
+    compare all three (i.e., include \texttt{std::vector}) possibilities and
+    measure the differences (i.e., flatter data structures should help, but how
+    much do they help?)
+
   \item Work on shrinking data structures (store one ReferenceCell per
-    Triangulation instead of one per cell, variable strides)
+    Triangulation instead of one per cell, variable strides) (we need to be
+    careful with \texttt{std::variant}: GCC generates a vtable while clang
+    creates a switch statement. Maybe this is fixed in newer versions of GCC).
+    Either way we can compare a branch vs. a read
+
+  \item For 9.8, Dominik and I rewrote a lot of the inner stride data structures
+    of Triangulation (e.g., we store $N$ faces per cell, which is $4$ for
+    triangulations containing only tetrahedra and $6$ for triangulations with
+    hexahedra). There are a few things we can investigate there:
+
+    \begin{itemize}
+      \item Need for compile-time constants for division (PR 19944). It's an odd
+        consequence of supporting mixed triangulations.
+
+      \item Is there any difference between \emph{multiplying} by a stride known
+        at compile time vs. a runtime-only constant? (see the new internal
+        \texttt{TriangulationImplementation::Strides} class)
+    \end{itemize}
+
 \end{enumerate}
 
 \section{Optimizing DoFHandler}
 \begin{enumerate}
   \item Peter should also get a lot of credit here
+
   \item DoF lookup could be better optimized (maybe template on hp or not-hp,
     and further template on \texttt{ReferenceCell})
+
   \item Be careful with our use of \texttt{extern} and \texttt{inline} (maybe
     too in-the-weeds for this paper, but that was a weird effect)
+\end{enumerate}
+
+\section{Case Study in Flattening Data Structures: \texttt{KellyErrorEstimator}}
+It might be worth doing some benchmarking to demonstrate the efficacy of
+flattening out everything (e.g., PRs 19794, 19803).
+\begin{enumerate}
+  \item Describe changes (mostly switching from \texttt{std::map} to
+    \texttt{Table<3, Number>})
+
+  \item Document memory allocation changes
+
+  \item Document callgrind or other performance benchmarks (nice learning
+    experience for David: can I get \texttt{prof} to tabulate data on cache
+    misses before and after? Some tooling independent of vtune would be nice)
 \end{enumerate}
 
 % main text bibliography:
 \renewcommand\refname{REFERENCES}
 \bibliographystyle{plain}
-\bibliography{bib}
+\bibliography{paper}
 
 \end{document}
