@@ -47,6 +47,41 @@ packages have evolved (e.g., dolfinx).
     CPUs (e.g., Hooke for automatic differentiation) which is more relevant to
     this paper than their work on partial assembly etc.
 
+  \item \emph{TODO} maybe Nek and its relatives?
+    \begin{enumerate}
+      \item Nektar++: To investigate whether or not it is actually worth reviewing
+        other libraries I spent a lot of time reading through their source code.
+
+        I read through the ADR (advection diffusion reaction) example, which
+        pointed me to \texttt{Nektar::SpatialDomains::MeshGraph}. It has some
+        care to avoid allocations (e.g., \textttt{FaceElementLink} usually has
+        two elements sharing a face and avoids allocation via an ad-hoc
+        implementation of \texttt{boost::container::small\_vector}).
+
+        \texttt{MeshGraph} stores all `geometries' separately: e.g.,
+        \texttt{GetTetGeom} gets a tetrahedron. Like libMesh, a \texttt{TetGeom}
+        has a \texttt{std::array<TriGeom *, 4>} to store its bounding faces. I
+        suspect this isn't a significant performance problem because, with
+        spectral elements, they don't have that many elements anyway.
+
+        The developer guide
+        \url{https://doc.nektar.info/developerguide/latest/developer-guidese2.html}
+        is quite helpful! It seems somewhat inspired by old lab terminology
+        (zones are regions?).
+
+        \begin{quote}
+          Limited high-order finite element capabilities are also included in a
+          number of general purpose PDE frameworks including the DUNE project
+          [19] and deal.II [6].
+        \end{quote}
+        Looks like we need to improve our marketing.
+    \end{enumerate}
+
+  \item \emph{TODO}: What do we actually want to include in this paper w.r.t.
+    Triangulation internals?
+
+  \item \emph{TODO} maybe Trixie, another Julia package
+
   \item I also found a paper on GridapSolvers (implemented in Julia) but it
     doesn't talk about their internals.
 
