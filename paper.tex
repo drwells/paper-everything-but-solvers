@@ -155,7 +155,33 @@ adding new features
   \item \texttt{constexpr ReferenceCell<dim>} is about as good as
     \texttt{GeometryInfo<dim>}
 
-  \item \texttt{constexpr} and \texttt{consteval}: do we ever need \texttt{consteval}?
+  \item \texttt{constexpr} and \texttt{consteval}: do we ever need
+    \texttt{consteval}? We could use \texttt{consteval} for compile-time
+    checking with a new macro
+\end{enumerate}
+
+\section{Case Study: Flattening \texttt{KellyErrorEstimator}}
+It might be worth doing some benchmarking to demonstrate the efficacy of
+flattening out everything (e.g., PRs 19794, 19803).
+\begin{enumerate}
+  \item Start here to develop some tools for benchmarking (some combination of
+    likwid, perf, and callgrind)
+
+  \item Describe changes (mostly switching from \texttt{std::map} to
+    \texttt{Table<3, Number>})
+
+  \item Document memory allocation changes
+    \begin{itemize}
+      \item \texttt{perf stat -e L1-dcache-load-misses ./step-40}
+      \item If we revert all the changes: 336 million L1 cache misses
+      \item On master: 285 million L1 cache misses
+      \item Running \texttt{taskset -c 0-7 perf record --call-graph fp -F 1999 -e cpu\_core/L1-dcache-load-misses/ ./step-40}
+        has different numbers: odd. Why is perf so weird?
+    \end{itemize}
+
+  \item Document callgrind or other performance benchmarks (nice learning
+    experience for David: can I get \texttt{prof} to tabulate data on cache
+    misses before and after? Some tooling independent of vtune would be nice)
 \end{enumerate}
 
 \subsection{\texttt{inplace\_vector} vs. \texttt{array} vs \texttt{vector}}
@@ -169,7 +195,16 @@ adding new features
     \texttt{Hexahedron8} and \texttt{Hexahedron27}
 \end{enumerate}
 
-\section{Optimizing Triangulation}
+\section{Case Study: \texttt{ReferenceCell}}
+\begin{enumerate}
+  \item Goal: as fast as \texttt{GeometryInfo}
+
+  \item \texttt{constexpr}ification
+
+  \item Can we generate lookup tables at compile time?
+\end{enumerate}
+
+\section{Case Study: \texttt{Triangulation} internals}
 \begin{enumerate}
   \item Work on flattening data structures (e.g., more inplace vector) (how much
     did it actually help?). I noticed some weirdness in Triangulation when I
@@ -199,12 +234,21 @@ adding new features
         at compile time vs. a runtime-only constant? (see the new internal
         \texttt{TriangulationImplementation::Strides} class)
     \end{itemize}
-
 \end{enumerate}
 
-\section{Optimizing DoFHandler}
+\section{Case Study: DoF access}
 \begin{enumerate}
-  \item Peter should also get a lot of credit here
+  \item Every non-matrixfree algorithm does \texttt{cell->get\_dof\_indices()}.
+    We should optimize it.
+
+  \item Benchmark: how fast can we access DoFs?
+
+  \item Consider local DoF access vs. translation (issue 18156). Can we make the
+    local enumeration somehow available in a patched version of deal.II? This
+    would speed up some interpolation problems quite a bit.
+
+  \item Peter should also get a lot of credit here (unification of hp and
+    non-hp, mixed meshes, etc.)
 
   \item DoF lookup could be better optimized (maybe template on hp or not-hp,
     and further template on \texttt{ReferenceCell}). On the other hand, we
@@ -212,20 +256,9 @@ adding new features
 
   \item Be careful with our use of \texttt{extern} and \texttt{inline} (maybe
     too in-the-weeds for this paper, but that was a weird effect)
-\end{enumerate}
 
-\section{Case Study in Flattening Data Structures: \texttt{KellyErrorEstimator}}
-It might be worth doing some benchmarking to demonstrate the efficacy of
-flattening out everything (e.g., PRs 19794, 19803).
-\begin{enumerate}
-  \item Describe changes (mostly switching from \texttt{std::map} to
-    \texttt{Table<3, Number>})
-
-  \item Document memory allocation changes
-
-  \item Document callgrind or other performance benchmarks (nice learning
-    experience for David: can I get \texttt{prof} to tabulate data on cache
-    misses before and after? Some tooling independent of vtune would be nice)
+  \item This can also overlap with other \texttt{ReferenceCell} work (e.g., how
+    much did \texttt{constexpr}ification help?).
 \end{enumerate}
 
 % main text bibliography:
