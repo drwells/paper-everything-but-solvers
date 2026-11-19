@@ -9,7 +9,7 @@
 \input{notation}
 
 % Set title and author information:
-\title{Everything But Solvers: Optimizing Internal Finite Element Data Structures}
+\title{Everything But Solvers: Optimizing Common Finite Element Operations}
 \author[1]{Martin Kronbichler}
 \author[2,*]{David Wells}
 \affil[1]{TODO}
@@ -160,6 +160,10 @@ adding new features
     checking with a new macro
 \end{enumerate}
 
+\section{Not a Case Study: Matrix Assembly}
+A bit beyond the scope of this paper. We have five ways to do this in deal.II...
+what do we choose?
+
 \section{Case Study: Flattening \texttt{KellyErrorEstimator}}
 It might be worth doing some benchmarking to demonstrate the efficacy of
 flattening out everything (e.g., PRs 19794, 19803).
@@ -184,6 +188,15 @@ flattening out everything (e.g., PRs 19794, 19803).
     misses before and after? Some tooling independent of vtune would be nice)
 \end{enumerate}
 
+\section{Case Study: Something with \texttt{GeometryInfo} vs \texttt{ReferenceCell}}
+\begin{enumerate}
+  \item This would be interesting. Can we get the same performance?
+
+  \item One possibility: line orientation calculation and look-up
+
+  \item Roll into \texttt{constexpr}ification of \texttt{ReferenceCell}
+\end{enumerate}
+
 \subsection{\texttt{inplace\_vector} vs. \texttt{array} vs \texttt{vector}}
 \begin{enumerate}
   \item I saw a slowdown when replacing, in the part of \texttt{tria.cc} which
@@ -206,6 +219,10 @@ flattening out everything (e.g., PRs 19794, 19803).
 
 \section{Case Study: \texttt{Triangulation} internals}
 \begin{enumerate}
+  \item Profile the cost of setting up a large Triangulation
+
+  \item What are some common operations for looping across a Triangulation?
+
   \item Work on flattening data structures (e.g., more inplace vector) (how much
     did it actually help?). I noticed some weirdness in Triangulation when I
     tried to replace \texttt{std::array} with
@@ -247,12 +264,34 @@ flattening out everything (e.g., PRs 19794, 19803).
     local enumeration somehow available in a patched version of deal.II? This
     would speed up some interpolation problems quite a bit.
 
+    \begin{itemize}
+      \item Local DoFs are not unique: they depend on both the
+        \texttt{DoFHandler} (i.e., the global DoF enumeration) and the
+        partitioner (do we need ghost data on all ghost cells, or just
+        locally-owned cells?). Hence using them requires knowledge of whether or
+        not we are using the full ghost region, which we usually don't want to
+        do. That's complicated.
+
+      \item I switched to doing this in Cardinal and the results are very good.
+        In wall time, computing a load vector (which involves some other complex
+        mechanics calculations, \texttt{FESystem} indexing, etc.) became 20\%
+        faster when I passed in an array of local DoFs and never called
+        \texttt{get\_cell\_dofs()} (and accessing vectors was done purely with
+        \texttt{local\_element()}).
+    \end{itemize}
+
   \item Peter should also get a lot of credit here (unification of hp and
     non-hp, mixed meshes, etc.)
 
   \item DoF lookup could be better optimized (maybe template on hp or not-hp,
     and further template on \texttt{ReferenceCell}). On the other hand, we
     explicitly decided with PR 14068 that we get rid of the cache.
+
+    \begin{itemize}
+      \item Some profiling indicates that we spend a bunch of time in
+        \texttt{ReferenceCell} functions when doing DoF lookup, which could be
+        avoided if we have a \texttt{constexpr ReferenceCell}.
+    \end{itemize}
 
   \item Be careful with our use of \texttt{extern} and \texttt{inline} (maybe
     too in-the-weeds for this paper, but that was a weird effect)
@@ -267,3 +306,12 @@ flattening out everything (e.g., PRs 19794, 19803).
 \bibliography{paper}
 
 \end{document}
+
+% TODO:  can we get perf to use dwarf but ignore inlined functions?
+
+% TODO (time permitting): what's the state of our matrix-free simplex support?
+
+% Note: connectivity for tets may be significantly worse than for hexes
+
+%% Interesting point: not using the full ghost layer reduces the number of
+%% ghosts by 3-5x (a layer around 20% of all cells is not small in 3d!)
